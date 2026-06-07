@@ -22,7 +22,6 @@ import os
 import logging
 import threading
 import signal
-import locale
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
@@ -101,16 +100,9 @@ LANG = "en"
 def detect_lang() -> str:
     args = [a for a in sys.argv[1:] if a.startswith("--lang=")]
     if args:
-        lang = args[0].split("=", 1)[1]
+        lang = args[0].split("=", 1)[1].lower()
         if lang in ("zh", "cn", "chinese", "中文"):
             return "zh"
-        return "en"
-    try:
-        sl = locale.getdefaultlocale()[0] or ""
-        if sl.startswith("zh"):
-            return "zh"
-    except Exception:
-        pass
     return "en"
 
 def t(key: str, *args) -> str:

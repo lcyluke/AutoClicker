@@ -23,7 +23,6 @@ import json
 import time
 import sys
 import signal
-import locale
 from pathlib import Path
 
 import pyautogui
@@ -190,20 +189,12 @@ T = {
 LANG = "en"
 
 def detect_lang() -> str:
-    """Detect language from --lang flag or system locale."""
+    """Detect language from --lang flag. Defaults to English."""
     args = [a for a in sys.argv[1:] if a.startswith("--lang=")]
     if args:
-        lang = args[0].split("=", 1)[1]
+        lang = args[0].split("=", 1)[1].lower()
         if lang in ("zh", "cn", "chinese", "中文"):
             return "zh"
-        return "en"
-
-    try:
-        sl = locale.getdefaultlocale()[0] or ""
-        if sl.startswith("zh"):
-            return "zh"
-    except Exception:
-        pass
     return "en"
 
 def t(key: str, *args) -> str:
