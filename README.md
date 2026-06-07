@@ -5,13 +5,13 @@
 </p>
 
 <p align="center">
-  <a href="#english">English</a> | <a href="#中文">中文</a>
+  <b>English</b> (click below to expand) | <b>中文</b>（点击下方展开）
 </p>
 
 ---
 
-<a id="english"></a>
-## English
+<details open>
+<summary><b>English</b></summary>
 
 > IDE multi-session auto clicker — automatically click Run, Accept, Confirm buttons across VS Code, Cursor, Kiro, Antigravity and other IDEs.
 
@@ -162,10 +162,10 @@ auto_confirm/
 - Tesseract OCR
 - Screen Recording + Accessibility permissions
 
----
+</details>
 
-<a id="中文"></a>
-## 中文
+<details>
+<summary><b>中文</b></summary>
 
 > IDE 多 session 自动点击器 — 替你在 VS Code、Cursor、Kiro、Antigravity 等 IDE 里自动点按钮、切标签、确认弹窗。
 
@@ -315,3 +315,4 @@ auto_confirm/
 - Python 3.9+
 - Tesseract OCR
 - 屏幕录制 + 辅助功能权限
+</details>
