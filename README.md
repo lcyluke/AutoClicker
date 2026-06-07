@@ -1,8 +1,8 @@
-# AutoClicker
-
 <p align="center">
   <img src="AutoClicker.png" alt="AutoClicker Logo" width="400">
 </p>
+
+# AutoClicker
 
 <p align="center">
   <b>English</b> | <b>中文</b>
