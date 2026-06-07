@@ -10,6 +10,10 @@
 
 ---
 
+<p align="center">
+  <video src="autoclicker.mp4" controls width="100%"></video>
+</p>
+
 > IDE 多 session 自动点击器 — 替你在 VS Code、Cursor、Kiro、Antigravity 等 IDE 里自动点按钮、切标签、确认弹窗。
 
 ## 一句话

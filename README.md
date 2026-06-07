@@ -10,6 +10,10 @@
 
 ---
 
+<p align="center">
+  <video src="autoclicker.mp4" controls width="100%"></video>
+</p>
+
 > IDE multi-session auto clicker — automatically click Run, Accept, Confirm buttons across VS Code, Cursor, Kiro, Antigravity and other IDEs.
 
 ## In One Sentence
