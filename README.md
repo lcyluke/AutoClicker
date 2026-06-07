@@ -1,11 +1,11 @@
 # AutoClicker
 
 <p align="center">
-  <img src="AutoClicker.png" alt="AutoClicker Logo" width="200">
+  <img src="AutoClicker.png" alt="AutoClicker Logo" width="400">
 </p>
 
 <p align="center">
-  <b>English</b> (click below to expand) | <b>中文</b>（点击下方展开）
+  <b>English</b> | <b>中文</b>
 </p>
 
 ---
