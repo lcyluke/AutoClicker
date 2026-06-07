@@ -159,6 +159,10 @@ auto_confirm/
 └── README_CN.md            # 中文文档
 ```
 
+## License
+
+MIT — see [LICENSE](LICENSE)
+
 ## Safety
 
 - Mouse to top-left corner = emergency stop (PyAutoGUI FAILSAFE)

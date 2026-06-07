@@ -159,6 +159,10 @@ auto_confirm/
 └── README_CN.md            # 中文文档
 ```
 
+## 许可
+
+MIT — 详见 [LICENSE](LICENSE)
+
 ## 安全
 
 - 鼠标移到屏幕左上角 = 紧急停止（PyAutoGUI FAILSAFE）
