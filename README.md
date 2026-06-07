@@ -1,17 +1,14 @@
 <p align="center">
-  <img src="AutoClicker.png" alt="AutoClicker Logo" width="400">
+  <a href="https://github.com/lcyluke/AutoClicker/blob/main/autoclicker.mp4">
+    <img src="AutoClicker.png" alt="▶ Watch Demo" width="400">
+  </a>
+  <br><b>▶ Click the logo to watch demo</b>
 </p>
 
 # AutoClicker
 
 <p align="center">
   <a href="README.md"><b>English</b></a> | <a href="README_CN.md">中文</a>
-</p>
-
----
-
-<p align="center">
-  <video src="autoclicker.mp4" controls width="100%"></video>
 </p>
 
 > IDE multi-session auto clicker — automatically click Run, Accept, Confirm buttons across VS Code, Cursor, Kiro, Antigravity and other IDEs.
