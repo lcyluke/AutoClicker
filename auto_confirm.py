@@ -98,11 +98,19 @@ T = {
 LANG = "en"
 
 def detect_lang() -> str:
-    args = [a for a in sys.argv[1:] if a.startswith("--lang=")]
-    if args:
-        lang = args[0].split("=", 1)[1].lower()
-        if lang in ("zh", "cn", "chinese", "中文"):
-            return "zh"
+    argv = sys.argv[1:]
+    for i, a in enumerate(argv):
+        if a == "--lang":
+            if i + 1 < len(argv):
+                lang = argv[i + 1].lower()
+                if lang in ("zh", "cn", "chinese", "中文"):
+                    return "zh"
+            return "en"
+        if a.startswith("--lang="):
+            lang = a.split("=", 1)[1].lower()
+            if lang in ("zh", "cn", "chinese", "中文"):
+                return "zh"
+            return "en"
     return "en"
 
 def t(key: str, *args) -> str:

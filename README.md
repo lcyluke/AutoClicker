@@ -86,9 +86,9 @@ Runtime controls:
 ## Language
 
 ```bash
-python clicker.py --lang en    # English
-python clicker.py --lang zh    # 中文
-python clicker.py              # auto-detect from system
+python clicker.py --lang en     # English (--lang=en also works)
+python clicker.py --lang zh     # 中文 (--lang=zh also works)
+python clicker.py               # defaults to English
 ```
 
 All three scripts (`clicker.py`, `auto_confirm.py`, `capture_template.py`) support `--lang`.

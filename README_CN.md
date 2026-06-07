@@ -86,9 +86,9 @@ python clicker.py
 ## 语言切换
 
 ```bash
-python clicker.py --lang en    # English
-python clicker.py --lang zh    # 中文
-python clicker.py              # 自动检测系统语言
+python clicker.py --lang en     # English (--lang=zh 也支持)
+python clicker.py --lang zh     # 中文 (--lang zh 也支持)
+python clicker.py               # 默认英文
 ```
 
 三个脚本（`clicker.py`、`auto_confirm.py`、`capture_template.py`）均支持 `--lang`。
