@@ -58,8 +58,8 @@ T = {
         "ask_tab_count": "How many tabs? (2-10): ",
         "step_header": "─── Tab {}/{} ───",
         "ask_label": "  Tab name (e.g. Task{}): ",
-        "goto_tab": "Move to [{}] tab click position (wait 4s)",
-        "goto_run": "Move to [{}] Run button center (wait 4s)",
+        "goto_tab": "Move to [{}] tab click position (wait 5s)",
+        "goto_run": "Move to [{}] Run button center (wait 7s)",
         "countdown": "      Countdown {}s, move mouse to target...",
         "recorded_pos": "\r     ✅ Position recorded: ({}, {})              ",
         "time_config_title": "─── Timing (press Enter for defaults) ───",
@@ -92,7 +92,7 @@ T = {
         "test_debug4": "  4. Confirm 'brew install tesseract' is done",
         "banner_title": "  AutoClicker",
         "banner_sub": "  Tab cycle clicker + OCR Run button detection",
-        "banner_hint": "  Record: hold mouse still on target for 4s",
+        "banner_hint": "  Record: hold mouse still on target for 5s",
         "menu_title": "Choose action:",
         "menu_1": "  1. 📍 Record click sequence (hold mouse still 4s)",
         "menu_2": "  2. 🔍 Capture & Recognize Buttons",
@@ -134,8 +134,8 @@ T = {
         "ask_tab_count": "录制几个标签页？(2-10): ",
         "step_header": "─── 第 {}/{} 个标签 ───",
         "ask_label": "  标签名称（如 Task{}）: ",
-        "goto_tab": "移到「{}」的标签点击位置（等4秒）",
-        "goto_run": "移到「{}」的Run按钮正中心（等4秒）",
+        "goto_tab": "移到「{}」的标签点击位置（等5秒）",
+        "goto_run": "移到「{}」的Run按钮正中心（等7秒）",
         "countdown": "     倒计时 {}s，请将鼠标移到目标位置...",
         "recorded_pos": "\r     ✅ 已记录坐标: ({}, {})              ",
         "time_config_title": "─── 时间配置（直接回车用默认值）───",
@@ -168,7 +168,7 @@ T = {
         "test_debug4": "  4. 确认 brew install tesseract 已完成",
         "banner_title": "  AutoClicker",
         "banner_sub": "  标签页循环点击 + OCR识别Run按钮",
-        "banner_hint": "  录制：鼠标放到目标位置静止等4秒即可",
+        "banner_hint": "  录制：鼠标放到目标位置静止等5秒即可",
         "menu_title": "选择操作：",
         "menu_1": "  1. 📍 录制点击序列（鼠标放到位置等4秒）",
         "menu_2": "  2. 🔍 按钮图标识别采集",
@@ -435,9 +435,9 @@ def run_loop():
 
 # ── Record mode ─────────────────────────────────────────────
 
-def countdown_get_pos(prompt: str) -> tuple:
+def countdown_get_pos(prompt: str, seconds: int = 4) -> tuple:
     print(f"\n  👉 {prompt}")
-    for i in range(4, 0, -1):
+    for i in range(seconds, 0, -1):
         print(t("countdown", i), end="", flush=True)
         time.sleep(1)
     x, y = pyautogui.position()
@@ -463,8 +463,8 @@ def record_mode():
         print(t("step_header", i+1, n))
         label = input(t("ask_label", i+1)).strip() or f"Tab{i+1}"
 
-        tab_x, tab_y = countdown_get_pos(t("goto_tab", label))
-        run_x, run_y = countdown_get_pos(t("goto_run", label))
+        tab_x, tab_y = countdown_get_pos(t("goto_tab", label), seconds=5)
+        run_x, run_y = countdown_get_pos(t("goto_run", label), seconds=7)
 
         steps.append({
             "label": label,
