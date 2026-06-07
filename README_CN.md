@@ -1,8 +1,5 @@
 <p align="center">
-  <a href="https://github.com/lcyluke/AutoClicker/blob/main/autoclicker.mp4">
-    <img src="AutoClicker.png" alt="▶ 观看演示" width="400">
-  </a>
-  <br><b>▶ 点击 Logo 观看演示视频</b>
+  <img src="autoclicker.gif" alt="AutoClicker 演示" width="100%">
 </p>
 
 # AutoClicker

@@ -1,8 +1,5 @@
 <p align="center">
-  <a href="https://github.com/lcyluke/AutoClicker/blob/main/autoclicker.mp4">
-    <img src="AutoClicker.png" alt="▶ Watch Demo" width="400">
-  </a>
-  <br><b>▶ Click the logo to watch demo</b>
+  <img src="autoclicker.gif" alt="AutoClicker Demo" width="100%">
 </p>
 
 # AutoClicker
