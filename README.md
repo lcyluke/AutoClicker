@@ -95,15 +95,17 @@ Runtime controls:
 | Exit | Press `q` + Enter or Ctrl+C |
 | Emergency stop | Move mouse to top-left corner |
 
-## Language
+## Language & Update
 
 ```bash
 python clicker.py --lang en     # English (--lang=en also works)
 python clicker.py --lang zh     # 中文 (--lang=zh also works)
 python clicker.py               # defaults to English
+python clicker.py --version     # show version
+python clicker.py --update      # git pull to latest
 ```
 
-All three scripts (`clicker.py`, `auto_confirm.py`, `capture_template.py`) support `--lang`.
+All three scripts (`clicker.py`, `auto_confirm.py`, `capture_template.py`) support `--lang`, `--version`, and `--update`.
 
 ## How It Works
 

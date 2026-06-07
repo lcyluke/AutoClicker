@@ -95,15 +95,17 @@ python clicker.py
 | 退出 | 按 `q` + Enter 或 Ctrl+C |
 | 紧急停止 | 鼠标移到屏幕左上角 |
 
-## 语言切换
+## 语言切换 & 更新
 
 ```bash
 python clicker.py --lang en     # English (--lang=zh 也支持)
 python clicker.py --lang zh     # 中文 (--lang zh 也支持)
 python clicker.py               # 默认英文
+python clicker.py --version     # 查看版本
+python clicker.py --update      # git pull 更新到最新
 ```
 
-三个脚本（`clicker.py`、`auto_confirm.py`、`capture_template.py`）均支持 `--lang`。
+三个脚本（`clicker.py`、`auto_confirm.py`、`capture_template.py`）均支持 `--lang`、`--version`、`--update`。
 
 ## 工作原理
 

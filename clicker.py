@@ -213,6 +213,40 @@ def t(key: str, *args) -> str:
         return s.format(*args)
     return s
 
+# ── Version & update ────────────────────────────────────────
+
+def get_version() -> str:
+    """Get version from git tag, fallback to hardcoded."""
+    import subprocess
+    try:
+        r = subprocess.run(
+            ["git", "describe", "--tags", "--always"],
+            capture_output=True, text=True, timeout=3,
+            cwd=str(BASE_DIR)
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.strip()
+    except Exception:
+        pass
+    return "v1.0.0"
+
+def handle_flags():
+    """Handle --version and --update flags. Exits after handling."""
+    argv = sys.argv[1:]
+    if "--version" in argv or "-V" in argv:
+        print(f"AutoClicker {get_version()}")
+        sys.exit(0)
+    if "--update" in argv:
+        import subprocess
+        print(f"AutoClicker {get_version()} — updating...")
+        r = subprocess.run(
+            ["git", "pull"], cwd=str(BASE_DIR),
+            capture_output=True, text=True, timeout=30
+        )
+        print(r.stdout.strip() or r.stderr.strip() or "Done.")
+        print(f"Now at: {get_version()}")
+        sys.exit(0)
+
 # ── OCR ─────────────────────────────────────────────────────
 
 try:
@@ -565,6 +599,7 @@ signal.signal(signal.SIGTERM, handle_exit)
 # ── Main menu ───────────────────────────────────────────────
 
 def main():
+    handle_flags()
     print("\n" + "█"*50)
     print(t("banner_title"))
     print(t("banner_sub"))
