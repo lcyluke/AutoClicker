@@ -3,8 +3,10 @@
 Template Capture Tool — screenshot button images as templates
 模板截图工具 — 截取按钮图像保存为模板
 
+Cross-platform: macOS / Windows / Linux
+
 Usage:
-  python capture_template.py              # auto-detect language
+  python capture_template.py              # defaults to English
   python capture_template.py --lang en    # English
   python capture_template.py --lang zh    # 中文
 

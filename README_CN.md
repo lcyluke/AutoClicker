@@ -42,19 +42,31 @@
 
 ### 1. 安装依赖
 
+**Python 包（全平台通用）：**
 ```bash
-# 系统依赖（OCR 引擎）
-brew install tesseract
-
-# Python 依赖
 pip install -r requirements.txt
 ```
 
-### 2. macOS 授权（必须）
+**Tesseract OCR 引擎：**
 
-System Settings → Privacy & Security：
-- **Accessibility**（辅助功能）→ 允许 Terminal / iTerm2
-- **Screen Recording**（屏幕录制）→ 允许 Terminal / iTerm2
+| 平台 | 命令 |
+|------|------|
+| macOS | `brew install tesseract` |
+| Windows | 从 [GitHub](https://github.com/UB-Mannheim/tesseract/wiki) 下载安装包 |
+| Linux | `sudo apt install tesseract-ocr` 或 `sudo dnf install tesseract` |
+
+**Windows 可选（桌面通知）：**
+```bash
+pip install win10toast
+```
+
+### 2. 系统权限
+
+| 平台 | 操作 |
+|------|------|
+| **macOS** | 系统设置 → 隐私与安全性 → 开启 **辅助功能** + **屏幕录制** 给 Terminal |
+| **Windows** | 无需额外授权 |
+| **Linux** | 无需额外授权（X11/Wayland 默认允许截屏） |
 
 ### 3. 录制点击序列
 
@@ -155,7 +167,7 @@ auto_confirm/
 
 ## 系统要求
 
-- macOS（主力；Windows/Linux 需要改截图 API）
+- **macOS** / **Windows** / **Linux**
 - Python 3.9+
 - Tesseract OCR
-- 屏幕录制 + 辅助功能权限
+- macOS：需要屏幕录制 + 辅助功能权限

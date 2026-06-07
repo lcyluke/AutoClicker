@@ -42,19 +42,31 @@ Screenshot buttons as templates. More accurate for fixed IDE layouts.
 
 ### 1. Install Dependencies
 
+**Python packages (all platforms):**
 ```bash
-# System dependency (OCR engine)
-brew install tesseract
-
-# Python dependencies
 pip install -r requirements.txt
 ```
 
-### 2. macOS Permissions (Required)
+**Tesseract OCR engine:**
 
-System Settings → Privacy & Security:
-- **Accessibility** → allow Terminal / iTerm2
-- **Screen Recording** → allow Terminal / iTerm2
+| Platform | Command |
+|----------|---------|
+| macOS | `brew install tesseract` |
+| Windows | Download installer from [GitHub](https://github.com/UB-Mannheim/tesseract/wiki) |
+| Linux | `sudo apt install tesseract-ocr` or `sudo dnf install tesseract` |
+
+**Windows optional (desktop notifications):**
+```bash
+pip install win10toast
+```
+
+### 2. System Permissions
+
+| Platform | What to do |
+|----------|------------|
+| **macOS** | System Settings → Privacy & Security → enable **Accessibility** + **Screen Recording** for Terminal |
+| **Windows** | No extra permissions needed |
+| **Linux** | No extra permissions needed (X11/Wayland screen access by default) |
 
 ### 3. Record Click Sequence
 
@@ -155,7 +167,7 @@ auto_confirm/
 
 ## Requirements
 
-- macOS (primary; Windows/Linux need screenshot API adaptation)
+- **macOS** / **Windows** / **Linux**
 - Python 3.9+
 - Tesseract OCR
-- Screen Recording + Accessibility permissions
+- macOS: Screen Recording + Accessibility permissions

@@ -3,6 +3,8 @@
 AutoClicker - IDE multi-session auto clicker
 AutoClicker - IDE 多 session 自动点击器
 
+Cross-platform: macOS / Windows / Linux
+
 Logic:
   Click Tab1 → scan around saved position for "Run" text (up to 7s) → click if found → wait 3s
   Click Tab2 → same
@@ -10,13 +12,12 @@ Logic:
   Back to Tab1, loop
 
 Usage:
-  python clicker.py              # auto-detect language from system
+  python clicker.py              # defaults to English
   python clicker.py --lang en    # English
   python clicker.py --lang zh    # 中文
 
 Dependencies:
   pip install pyautogui pillow pytesseract opencv-python numpy
-  brew install tesseract
 """
 
 import json

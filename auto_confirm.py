@@ -1,24 +1,25 @@
 #!/usr/bin/env python3
 """
-AutoConfirm - Auto-click Kiro/VSCode confirm buttons
-AutoConfirm - 自动点击 Kiro/VSCode 确认按钮
+AutoConfirm - Auto-click IDE confirm buttons
+AutoConfirm - 自动点击 IDE 确认按钮
 
 Dual engine: image template matching + OCR text detection
-macOS only
+Cross-platform: macOS / Windows / Linux
 
 Usage:
-  python auto_confirm.py              # auto-detect language
+  python auto_confirm.py              # defaults to English
   python auto_confirm.py --lang en    # English
   python auto_confirm.py --lang zh    # 中文
 
 Dependencies:
   pip install pyautogui pillow pytesseract opencv-python numpy
-  brew install tesseract
 """
 
 import time
 import sys
 import os
+import platform
+import subprocess
 import logging
 import threading
 import signal
@@ -184,13 +185,37 @@ class State:
 
 STATE = State()
 
-# ── macOS notification ──────────────────────────────────────
+# ── Cross-platform notification ──────────────────────────────
 
 def notify(title: str, msg: str):
-    if CONFIG.use_notification:
-        os.system(
-            f'osascript -e \'display notification "{msg}" with title "{title}"\''
-        )
+    """Send desktop notification. Platform-aware with console fallback."""
+    if not CONFIG.use_notification:
+        return
+
+    system = platform.system()
+
+    try:
+        if system == "Darwin":
+            # macOS: osascript
+            os.system(
+                f'osascript -e \'display notification "{msg}" with title "{title}"\''
+            )
+        elif system == "Windows":
+            # Windows: try win10toast, fallback to ctypes popup
+            try:
+                from win10toast import ToastNotifier
+                ToastNotifier().show_toast(title, msg, duration=3, threaded=True)
+            except ImportError:
+                import ctypes
+                ctypes.windll.user32.MessageBoxW(0, msg, title, 0x40)
+        else:
+            # Linux: notify-send
+            subprocess.run(
+                ["notify-send", title, msg],
+                capture_output=True, timeout=3
+            )
+    except Exception:
+        pass  # notification is best-effort — log already captures it
 
 # ── Screenshot ──────────────────────────────────────────────
 
