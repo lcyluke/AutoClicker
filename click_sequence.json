@@ -1,0 +1,35 @@
+{
+  "steps": [
+    {
+      "label": "Tab1",
+      "tab_pos": [
+        237,
+        -1291
+      ],
+      "run_pos": [
+        1170,
+        -392
+      ]
+    },
+    {
+      "label": "Tab2",
+      "tab_pos": [
+        426,
+        -1291
+      ],
+      "run_pos": [
+        1155,
+        -380
+      ]
+    }
+  ],
+  "loop_delay": 20.0,
+  "step_delay": 20.0,
+  "run_check": true,
+  "run_scan_timeout": 5.0,
+  "run_scan_interval": 0.8,
+  "after_run_delay": 5.0,
+  "after_tab_delay": 1.0,
+  "scan_width": 80,
+  "scan_height": 36
+}
