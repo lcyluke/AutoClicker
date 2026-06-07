@@ -1,5 +1,9 @@
 # AutoClicker
 
+<p align="center">
+  <img src="AutoClicker.png" alt="AutoClicker Logo" width="200">
+</p>
+
 > IDE 多 session 自动点击器 — 替你在 VS Code、Cursor、Kiro、Antigravity 等 IDE 里自动点按钮、切标签、确认弹窗。
 
 [English Docs](README.md)

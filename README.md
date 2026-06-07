@@ -1,5 +1,9 @@
 # AutoClicker
 
+<p align="center">
+  <img src="AutoClicker.png" alt="AutoClicker Logo" width="200">
+</p>
+
 > IDE multi-session auto clicker — automatically click Run, Accept, Confirm buttons across VS Code, Cursor, Kiro, Antigravity and other IDEs.
 
 [中文文档](README_CN.md)
