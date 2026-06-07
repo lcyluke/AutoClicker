@@ -9,11 +9,34 @@ Usage:
   python capture_template.py              # defaults to English
   python capture_template.py --lang en    # English
   python capture_template.py --lang zh    # 中文
+  python capture_template.py --version    # show version
+  python capture_template.py --update     # git pull to latest
 
 How it works:
   Run the script → type a template name → countdown 3s →
   move mouse to target button → screenshot auto-captured.
 """
+
+# ── Flag check BEFORE imports (so --version/--update work even if deps missing) ─
+import sys as _sys, os as _os
+_argv = _sys.argv[1:]
+if "--version" in _argv or "-V" in _argv:
+    import subprocess as _sp
+    _dir = _os.path.dirname(_os.path.abspath(__file__))
+    try:
+        r = _sp.run(["git", "describe", "--tags", "--always"],
+                     capture_output=True, text=True, timeout=3, cwd=_dir)
+        print(f"CaptureTemplate {r.stdout.strip()}" if r.returncode == 0 else "CaptureTemplate v1.0.1")
+    except Exception:
+        print("CaptureTemplate v1.0.1")
+    _sys.exit(0)
+if "--update" in _argv:
+    import subprocess as _sp
+    _dir = _os.path.dirname(_os.path.abspath(__file__))
+    print("CaptureTemplate — updating from git...")
+    r = _sp.run(["git", "pull"], capture_output=True, text=True, timeout=30, cwd=_dir)
+    print(r.stdout.strip() or r.stderr.strip() or "Done.")
+    _sys.exit(0)
 
 import time
 import sys
@@ -77,40 +100,6 @@ def t(key: str, *args) -> str:
         return s.format(*args)
     return s
 
-# ── Version & update ────────────────────────────────────────
-
-BASE_DIR = Path(__file__).parent
-
-def get_version() -> str:
-    import subprocess
-    try:
-        r = subprocess.run(
-            ["git", "describe", "--tags", "--always"],
-            capture_output=True, text=True, timeout=3,
-            cwd=str(BASE_DIR)
-        )
-        if r.returncode == 0 and r.stdout.strip():
-            return r.stdout.strip()
-    except Exception:
-        pass
-    return "v1.0.0"
-
-def handle_flags():
-    argv = sys.argv[1:]
-    if "--version" in argv or "-V" in argv:
-        print(f"CaptureTemplate {get_version()}")
-        sys.exit(0)
-    if "--update" in argv:
-        import subprocess
-        print(f"CaptureTemplate {get_version()} — updating...")
-        r = subprocess.run(
-            ["git", "pull"], cwd=str(BASE_DIR),
-            capture_output=True, text=True, timeout=30
-        )
-        print(r.stdout.strip() or r.stderr.strip() or "Done.")
-        print(f"Now at: {get_version()}")
-        sys.exit(0)
-
 # ── Capture ─────────────────────────────────────────────────
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -145,7 +134,6 @@ def capture_around_mouse(name: str):
 # ── Main ────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    handle_flags()
     LANG = detect_lang()
 
     print("=" * 40)

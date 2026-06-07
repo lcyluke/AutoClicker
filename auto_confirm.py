@@ -10,10 +10,33 @@ Usage:
   python auto_confirm.py              # defaults to English
   python auto_confirm.py --lang en    # English
   python auto_confirm.py --lang zh    # 中文
+  python auto_confirm.py --version    # show version
+  python auto_confirm.py --update     # git pull to latest
 
 Dependencies:
   pip install pyautogui pillow pytesseract opencv-python numpy
 """
+
+# ── Flag check BEFORE imports (so --version/--update work even if deps missing) ─
+import sys as _sys, os as _os
+_argv = _sys.argv[1:]
+if "--version" in _argv or "-V" in _argv:
+    import subprocess as _sp
+    _dir = _os.path.dirname(_os.path.abspath(__file__))
+    try:
+        r = _sp.run(["git", "describe", "--tags", "--always"],
+                     capture_output=True, text=True, timeout=3, cwd=_dir)
+        print(f"AutoConfirm {r.stdout.strip()}" if r.returncode == 0 else "AutoConfirm v1.0.1")
+    except Exception:
+        print("AutoConfirm v1.0.1")
+    _sys.exit(0)
+if "--update" in _argv:
+    import subprocess as _sp
+    _dir = _os.path.dirname(_os.path.abspath(__file__))
+    print("AutoConfirm — updating from git...")
+    r = _sp.run(["git", "pull"], capture_output=True, text=True, timeout=30, cwd=_dir)
+    print(r.stdout.strip() or r.stderr.strip() or "Done.")
+    _sys.exit(0)
 
 import time
 import sys
@@ -119,40 +142,6 @@ def t(key: str, *args) -> str:
     if args:
         return s.format(*args)
     return s
-
-# ── Version & update ────────────────────────────────────────
-
-BASE_DIR = Path(__file__).parent
-
-def get_version() -> str:
-    import subprocess
-    try:
-        r = subprocess.run(
-            ["git", "describe", "--tags", "--always"],
-            capture_output=True, text=True, timeout=3,
-            cwd=str(BASE_DIR)
-        )
-        if r.returncode == 0 and r.stdout.strip():
-            return r.stdout.strip()
-    except Exception:
-        pass
-    return "v1.0.0"
-
-def handle_flags():
-    argv = sys.argv[1:]
-    if "--version" in argv or "-V" in argv:
-        print(f"AutoConfirm {get_version()}")
-        sys.exit(0)
-    if "--update" in argv:
-        import subprocess
-        print(f"AutoConfirm {get_version()} — updating...")
-        r = subprocess.run(
-            ["git", "pull"], cwd=str(BASE_DIR),
-            capture_output=True, text=True, timeout=30
-        )
-        print(r.stdout.strip() or r.stderr.strip() or "Done.")
-        print(f"Now at: {get_version()}")
-        sys.exit(0)
 
 # ── OCR ─────────────────────────────────────────────────────
 
@@ -457,7 +446,6 @@ signal.signal(signal.SIGTERM, handle_signal)
 # ── Entry ───────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    handle_flags()
     LANG = detect_lang()
 
     pyautogui.FAILSAFE = True

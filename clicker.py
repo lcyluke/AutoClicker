@@ -15,10 +15,33 @@ Usage:
   python clicker.py              # defaults to English
   python clicker.py --lang en    # English
   python clicker.py --lang zh    # 中文
+  python clicker.py --version    # show version
+  python clicker.py --update     # git pull to latest
 
 Dependencies:
   pip install pyautogui pillow pytesseract opencv-python numpy
 """
+
+# ── Flag check BEFORE imports (so --version/--update work even if deps missing) ─
+import sys as _sys, os as _os
+_argv = _sys.argv[1:]
+if "--version" in _argv or "-V" in _argv:
+    import subprocess as _sp
+    _dir = _os.path.dirname(_os.path.abspath(__file__))
+    try:
+        r = _sp.run(["git", "describe", "--tags", "--always"],
+                     capture_output=True, text=True, timeout=3, cwd=_dir)
+        print(f"AutoClicker {r.stdout.strip()}" if r.returncode == 0 else "AutoClicker v1.0.1")
+    except Exception:
+        print("AutoClicker v1.0.1")
+    _sys.exit(0)
+if "--update" in _argv:
+    import subprocess as _sp
+    _dir = _os.path.dirname(_os.path.abspath(__file__))
+    print("AutoClicker — updating from git...")
+    r = _sp.run(["git", "pull"], capture_output=True, text=True, timeout=30, cwd=_dir)
+    print(r.stdout.strip() or r.stderr.strip() or "Done.")
+    _sys.exit(0)
 
 import json
 import time
@@ -212,40 +235,6 @@ def t(key: str, *args) -> str:
     if args:
         return s.format(*args)
     return s
-
-# ── Version & update ────────────────────────────────────────
-
-def get_version() -> str:
-    """Get version from git tag, fallback to hardcoded."""
-    import subprocess
-    try:
-        r = subprocess.run(
-            ["git", "describe", "--tags", "--always"],
-            capture_output=True, text=True, timeout=3,
-            cwd=str(BASE_DIR)
-        )
-        if r.returncode == 0 and r.stdout.strip():
-            return r.stdout.strip()
-    except Exception:
-        pass
-    return "v1.0.0"
-
-def handle_flags():
-    """Handle --version and --update flags. Exits after handling."""
-    argv = sys.argv[1:]
-    if "--version" in argv or "-V" in argv:
-        print(f"AutoClicker {get_version()}")
-        sys.exit(0)
-    if "--update" in argv:
-        import subprocess
-        print(f"AutoClicker {get_version()} — updating...")
-        r = subprocess.run(
-            ["git", "pull"], cwd=str(BASE_DIR),
-            capture_output=True, text=True, timeout=30
-        )
-        print(r.stdout.strip() or r.stderr.strip() or "Done.")
-        print(f"Now at: {get_version()}")
-        sys.exit(0)
 
 # ── OCR ─────────────────────────────────────────────────────
 
@@ -599,7 +588,6 @@ signal.signal(signal.SIGTERM, handle_exit)
 # ── Main menu ───────────────────────────────────────────────
 
 def main():
-    handle_flags()
     print("\n" + "█"*50)
     print(t("banner_title"))
     print(t("banner_sub"))
