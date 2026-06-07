@@ -26,9 +26,9 @@ if "--version" in _argv or "-V" in _argv:
     try:
         r = _sp.run(["git", "describe", "--tags", "--always"],
                      capture_output=True, text=True, timeout=3, cwd=_dir)
-        print(f"CaptureTemplate {r.stdout.strip()}" if r.returncode == 0 else "CaptureTemplate v1.0.1")
+        print(f"CaptureTemplate {r.stdout.strip()}" if r.returncode == 0 else "CaptureTemplate v1.0.2")
     except Exception:
-        print("CaptureTemplate v1.0.1")
+        print("CaptureTemplate v1.0.2")
     _sys.exit(0)
 if "--update" in _argv:
     import subprocess as _sp

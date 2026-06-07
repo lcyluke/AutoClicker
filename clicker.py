@@ -31,9 +31,9 @@ if "--version" in _argv or "-V" in _argv:
     try:
         r = _sp.run(["git", "describe", "--tags", "--always"],
                      capture_output=True, text=True, timeout=3, cwd=_dir)
-        print(f"AutoClicker {r.stdout.strip()}" if r.returncode == 0 else "AutoClicker v1.0.1")
+        print(f"AutoClicker {r.stdout.strip()}" if r.returncode == 0 else "AutoClicker v1.0.2")
     except Exception:
-        print("AutoClicker v1.0.1")
+        print("AutoClicker v1.0.2")
     _sys.exit(0)
 if "--update" in _argv:
     import subprocess as _sp
