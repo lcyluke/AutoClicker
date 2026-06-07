@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 """
+AutoClicker - IDE multi-session auto clicker
 AutoClicker - IDE 多 session 自动点击器
-逻辑：
-  点Tab1 → 在录入位置周围扫描"Run"字(最多等7s) → 找到就点 → 等3s
-  点Tab2 → 同上
-  点Tab3 → 同上
-  回到Tab1 循环
 
-依赖：
+Logic:
+  Click Tab1 → scan around saved position for "Run" text (up to 7s) → click if found → wait 3s
+  Click Tab2 → same
+  Click Tab3 → same
+  Back to Tab1, loop
+
+Usage:
+  python clicker.py              # auto-detect language from system
+  python clicker.py --lang en    # English
+  python clicker.py --lang zh    # 中文
+
+Dependencies:
   pip install pyautogui pillow pytesseract opencv-python numpy
   brew install tesseract
 """
@@ -16,21 +23,205 @@ import json
 import time
 import sys
 import signal
+import locale
 from pathlib import Path
 
 import pyautogui
 import numpy as np
 from PIL import Image, ImageGrab, ImageEnhance, ImageFilter
 
-# OCR
+# ── i18n ───────────────────────────────────────────────────
+
+T = {
+    "en": {
+        "ocr_warn": "⚠️  pytesseract not installed. OCR unavailable. Run: pip install pytesseract && brew install tesseract",
+        "cfg_saved": "✅ Saved: {}",
+        "loop_start": "▶️  Starting loop  {} tabs",
+        "run_timeout": "   Run detection timeout: {}s",
+        "after_run_delay": "   After-run delay: {}s",
+        "scan_area": "   Scan area: {}×{}px",
+        "failsafe_hint": "   Mouse to top-left corner = emergency stop",
+        "ctrl_c_hint": "   Ctrl+C = exit",
+        "switch_hint": "⏳ Starting in 3s, switch to target window...",
+        "round_header": "🔄 Round {}  [{}]  total {} tabs",
+        "click_tab": "  → Click tab: ({}, {})",
+        "scanning": "    Scanning Run... attempt {} (remaining {:.1f}s) area:{}×{}px",
+        "found_run": "\n    ✅ [{}] Run found, click ({}, {})",
+        "timeout_run": "\n    ⏰ [{}] Run not found within {}s, skipping",
+        "wait_next": "  ⏳ Waiting {}s before next tab...",
+        "round_end": "   Round complete: clicked {}/{} Run buttons",
+        "loop_delay_wait": "   Waiting {}s before restarting from tab 1...",
+        "stopped": "\n🏁 Stopped. {} rounds completed",
+        "record_title": "📍 Record Mode",
+        "record_hint1": "  Just hold mouse still on target for 4s — no click, no circling",
+        "record_hint2": "  Coordinates are auto-captured",
+        "ask_tab_count": "How many tabs? (2-10): ",
+        "step_header": "─── Tab {}/{} ───",
+        "ask_label": "  Tab name (e.g. Task{}): ",
+        "goto_tab": "Move to [{}] tab click position (wait 4s)",
+        "goto_run": "Move to [{}] Run button center (wait 4s)",
+        "countdown": "      Countdown {}s, move mouse to target...",
+        "recorded_pos": "\r     ✅ Position recorded: ({}, {})              ",
+        "time_config_title": "─── Timing (press Enter for defaults) ───",
+        "ask_timeout": "  Run detection timeout (default {}s, range 3-7): ",
+        "ask_after_run": "  After-run delay (default {}s): ",
+        "ask_scan_w": "  Scan width px (default {}, ~1 button wide): ",
+        "ask_scan_h": "  Scan height px (default {}, ~1 button tall): ",
+        "config_title": "📋 Current Config",
+        "config_empty": "  (empty, no steps recorded)",
+        "config_step_line": "  {}. {}",
+        "config_tab_pos": "     Tab position: ({}, {})",
+        "config_run_pos": "     Run center:  ({}, {})  scan area:{}×{}px",
+        "config_timeout": "  Run detection timeout: {}s",
+        "config_after_run": "  After-run delay: {}s",
+        "config_after_tab": "  After-tab delay: {}s",
+        "config_interval": "  Scan interval: {}s",
+        "config_area": "  Scan area: {}×{}px",
+        "config_ocr": "  OCR engine:     {}",
+        "test_title": "📸 Test Run Button Detection",
+        "test_hint1": "   Scan area: {}×{} px (~one button size)",
+        "test_hint2": "   Just put mouse on center of Run button",
+        "test_goto": "Move to Run button center (wait 4s)",
+        "test_capture": "\nCapturing {}×{}px area around ({}, {})...",
+        "test_saved": "  Screenshot saved: {} (open to verify scan area)",
+        "test_success": "✅ Detected! Run button at global coords: ({}, {})",
+        "test_fail": "❌ Run text not detected",
+        "test_debug1": "  1. Open {} to check if screenshot includes full Run button",
+        "test_debug2": "  2. If button is clipped, increase scan_width/scan_height",
+        "test_debug3": "  3. If button is too small in screenshot, decrease scan_width/scan_height",
+        "test_debug4": "  4. Confirm 'brew install tesseract' is done",
+        "banner_title": "  AutoClicker",
+        "banner_sub": "  Tab cycle clicker + OCR Run button detection",
+        "banner_hint": "  Record: hold mouse still on target for 4s",
+        "menu_title": "Choose action:",
+        "menu_1": "  1. 📍 Record click sequence (hold mouse still 4s)",
+        "menu_2": "  2. 🔍 Test Run button detection (debug)",
+        "menu_3": "  3. ▶️  Start loop",
+        "menu_4": "  4. 📋 View current config",
+        "menu_5": "  5. 🚪 Exit",
+        "menu_prompt": "\nEnter choice (1-5): ",
+        "menu_invalid": "Enter 1-5",
+        "bye": "Goodbye!",
+        "ocr_ready": "✅ available",
+        "ocr_not_ready": "❌ not installed",
+        "no_steps": "❌ No steps recorded. Please choose 1 to record first.",
+        "sigint_stop": "\n\n⏹ Stopped. {} rounds completed",
+        "ocr_found": "    [OCR] Run button found: '{}' confidence:{}% local:({},{})",
+        "ocr_error": "    [OCR] error: {}",
+    },
+    "zh": {
+        "ocr_warn": "⚠️  pytesseract 未安装，OCR识别不可用。运行: pip install pytesseract 并 brew install tesseract",
+        "cfg_saved": "✅ 已保存: {}",
+        "loop_start": "▶️  开始循环  共 {} 个标签页",
+        "run_timeout": "   Run识别超时: {}s",
+        "after_run_delay": "   点Run后等待: {}s",
+        "scan_area": "   扫描区域:    {}×{}px",
+        "failsafe_hint": "   鼠标移到屏幕左上角 = 紧急停止",
+        "ctrl_c_hint": "   Ctrl+C = 退出",
+        "switch_hint": "⏳ 3秒后开始，请切换到目标窗口...",
+        "round_header": "🔄 第 {} 轮  [{}]  共{}个标签",
+        "click_tab": "  → 点击标签: ({}, {})",
+        "scanning": "    扫描Run... 第{}次 (剩余{:.1f}s) 区域:{}×{}px",
+        "found_run": "\n    ✅ [{}] 找到Run，点击 ({}, {})",
+        "timeout_run": "\n    ⏰ [{}] {}秒内未找到Run按钮，跳过",
+        "wait_next": "  ⏳ 等待 {}s 后进入下一个标签...",
+        "round_end": "  本轮结束: 点击了 {}/{} 个Run按钮",
+        "loop_delay_wait": "  等待 {}s 后重新从第1个标签开始...",
+        "stopped": "\n🏁 已停止，共执行 {} 轮",
+        "record_title": "📍 录制模式",
+        "record_hint1": "  录制时只需把鼠标【静止放在目标位置】等4秒",
+        "record_hint2": "  不需要画圈，不需要点击，脚本自动记录坐标",
+        "ask_tab_count": "录制几个标签页？(2-10): ",
+        "step_header": "─── 第 {}/{} 个标签 ───",
+        "ask_label": "  标签名称（如 Task{}）: ",
+        "goto_tab": "移到「{}」的标签点击位置（等4秒）",
+        "goto_run": "移到「{}」的Run按钮正中心（等4秒）",
+        "countdown": "     倒计时 {}s，请将鼠标移到目标位置...",
+        "recorded_pos": "\r     ✅ 已记录坐标: ({}, {})              ",
+        "time_config_title": "─── 时间配置（直接回车用默认值）───",
+        "ask_timeout": "  Run识别超时秒数（默认{}s，范围3-7）: ",
+        "ask_after_run": "  点击Run后等待秒数（默认{}s）: ",
+        "ask_scan_w": "  Run扫描区域宽度像素（默认{}px，约一个按钮宽）: ",
+        "ask_scan_h": "  Run扫描区域高度像素（默认{}px，约一个按钮高）: ",
+        "config_title": "📋 当前配置",
+        "config_empty": "  （空，还没有录制步骤）",
+        "config_step_line": "  {}. {}",
+        "config_tab_pos": "     标签位置: ({}, {})",
+        "config_run_pos": "     Run中心:  ({}, {})  扫描区域:{}×{}px",
+        "config_timeout": "  Run识别超时: {}s",
+        "config_after_run": "  点Run后等待: {}s",
+        "config_after_tab": "  点Tab后等待: {}s",
+        "config_interval": "  扫描间隔:    {}s",
+        "config_area": "  扫描区域:    {}×{}px",
+        "config_ocr": "  OCR引擎:     {}",
+        "test_title": "📸 测试Run按钮识别",
+        "test_hint1": "   扫描区域: {}×{} 像素（约一个按钮大小）",
+        "test_hint2": "   把鼠标放到Run按钮正中间就行，不用画圈或点击",
+        "test_goto": "移到Run按钮正中间（等4秒）",
+        "test_capture": "\n在 ({}, {}) 周围截取 {}×{}px 区域...",
+        "test_saved": "  截图已保存: {}（可打开查看扫描范围是否正确）",
+        "test_success": "✅ 识别成功！Run按钮在全局坐标: ({}, {})",
+        "test_fail": "❌ 未识别到Run文字",
+        "test_debug1": "  1. 打开 {} 看截图是否包含完整的Run按钮",
+        "test_debug2": "  2. 如果按钮被截断，增大 scan_width/scan_height",
+        "test_debug3": "  3. 如果按钮占比太小在截图里只占一小部分，减小 scan_width/scan_height",
+        "test_debug4": "  4. 确认 brew install tesseract 已完成",
+        "banner_title": "  AutoClicker",
+        "banner_sub": "  标签页循环点击 + OCR识别Run按钮",
+        "banner_hint": "  录制：鼠标放到目标位置静止等4秒即可",
+        "menu_title": "选择操作：",
+        "menu_1": "  1. 📍 录制点击序列（鼠标放到位置等4秒）",
+        "menu_2": "  2. 🔍 测试Run按钮识别（调试用）",
+        "menu_3": "  3. ▶️  开始循环运行",
+        "menu_4": "  4. 📋 查看当前配置",
+        "menu_5": "  5. 🚪 退出",
+        "menu_prompt": "\n请输入 (1-5): ",
+        "menu_invalid": "请输入 1-5",
+        "bye": "再见！",
+        "ocr_ready": "✅ 可用",
+        "ocr_not_ready": "❌ 未安装",
+        "no_steps": "❌ 没有录制步骤，请先选 1 录制",
+        "sigint_stop": "\n\n⏹ 已停止，共执行 {} 轮",
+        "ocr_found": "    [OCR] 找到Run按钮: '{}' 置信度:{}% 局部坐标:({},{})",
+        "ocr_error": "    [OCR] 异常: {}",
+    },
+}
+
+LANG = "en"
+
+def detect_lang() -> str:
+    """Detect language from --lang flag or system locale."""
+    args = [a for a in sys.argv[1:] if a.startswith("--lang=")]
+    if args:
+        lang = args[0].split("=", 1)[1]
+        if lang in ("zh", "cn", "chinese", "中文"):
+            return "zh"
+        return "en"
+
+    try:
+        sl = locale.getdefaultlocale()[0] or ""
+        if sl.startswith("zh"):
+            return "zh"
+    except Exception:
+        pass
+    return "en"
+
+def t(key: str, *args) -> str:
+    """Look up translated string. Call as t('key', arg1, arg2, ...)."""
+    s = T.get(LANG, T["en"]).get(key, T["en"].get(key, key))
+    if args:
+        return s.format(*args)
+    return s
+
+# ── OCR ─────────────────────────────────────────────────────
+
 try:
     import pytesseract
     OCR_OK = True
 except ImportError:
     OCR_OK = False
-    print("⚠️  pytesseract 未安装，OCR识别不可用。运行: pip install pytesseract 并 brew install tesseract")
+    print(t("ocr_warn"))
 
-# OpenCV（可选，用于模板匹配备用）
 try:
     import cv2
     CV2_OK = True
@@ -43,24 +234,22 @@ pyautogui.PAUSE    = 0.05
 BASE_DIR    = Path(__file__).parent
 CONFIG_FILE = BASE_DIR / "click_sequence.json"
 
-# ─────────────────────────────────────────────────────────────
-# 配置默认值
-# ─────────────────────────────────────────────────────────────
+# ── Default config ──────────────────────────────────────────
+
 DEFAULT_CFG = {
     "steps": [],
-    "run_scan_timeout": 7,    # 最多等几秒识别Run按钮
-    "run_scan_interval": 0.8, # 每次扫描间隔
-    "after_run_delay": 3,     # 点击Run后等待秒数
-    "after_tab_delay": 1.0,   # 点击Tab后等待秒数（等页面响应）
-    "scan_width": 100,        # 扫描区域宽度(像素) - 约一个按钮宽度
-    "scan_height": 36,        # 扫描区域高度(像素) - 约一个按钮高度
-    "loop_delay": 2,          # 每轮结束后额外等待
+    "run_scan_timeout": 7,
+    "run_scan_interval": 0.8,
+    "after_run_delay": 3,
+    "after_tab_delay": 1.0,
+    "scan_width": 100,
+    "scan_height": 36,
+    "loop_delay": 2,
 }
 
 def load_config() -> dict:
     if CONFIG_FILE.exists():
         cfg = json.loads(CONFIG_FILE.read_text())
-        # 补全缺少的字段
         for k, v in DEFAULT_CFG.items():
             cfg.setdefault(k, v)
         return cfg
@@ -68,33 +257,31 @@ def load_config() -> dict:
 
 def save_config(cfg: dict):
     CONFIG_FILE.write_text(json.dumps(cfg, indent=2, ensure_ascii=False))
-    print(f"✅ 已保存: {CONFIG_FILE}")
+    print(t("cfg_saved", str(CONFIG_FILE)))
 
-# ─────────────────────────────────────────────────────────────
-# OCR 识别 Run 按钮
-# ─────────────────────────────────────────────────────────────
+# ── OCR Run button detection ────────────────────────────────
 
 def preprocess(img: Image.Image) -> Image.Image:
-    """增强图像提升OCR准确率"""
-    img = img.convert("L")                         # 灰度
-    img = ImageEnhance.Contrast(img).enhance(2.5)  # 高对比度
-    img = img.filter(ImageFilter.SHARPEN)          # 锐化
+    """Enhance image for better OCR accuracy."""
+    img = img.convert("L")
+    img = ImageEnhance.Contrast(img).enhance(2.5)
+    img = img.filter(ImageFilter.SHARPEN)
     w, h = img.size
-    img = img.resize((w * 3, h * 3), Image.LANCZOS)  # 放大3倍
+    img = img.resize((w * 3, h * 3), Image.LANCZOS)
     return img
 
 def ocr_has_run(img: Image.Image) -> tuple:
     """
-    在图像中用OCR查找"Run"字样
-    返回 (found: bool, center_x: int, center_y: int)
-    坐标是相对于传入img的局部坐标
+    OCR scan for "Run" text in image.
+    Returns (found: bool, center_x: int, center_y: int)
+    Coordinates relative to input image.
     """
     if not OCR_OK:
         return False, 0, 0
 
     try:
         processed = preprocess(img)
-        scale = 3  # 对应resize倍数
+        scale = 3
 
         data = pytesseract.image_to_data(
             processed,
@@ -109,63 +296,48 @@ def ocr_has_run(img: Image.Image) -> tuple:
             if conf < 40:
                 continue
 
-            # 匹配 "Run"（不区分大小写）
             if word.lower() in ("run", "run>", ">run", "► run"):
-                # 换算回原始坐标
                 x = data["left"][i] / scale + data["width"][i] / scale / 2
                 y = data["top"][i] / scale + data["height"][i] / scale / 2
-                print(f"    [OCR] 找到Run按钮: '{word}' 置信度:{conf}% 局部坐标:({int(x)},{int(y)})")
+                print(t("ocr_found", word, conf, int(x), int(y)))
                 return True, int(x), int(y)
 
         return False, 0, 0
 
     except Exception as e:
-        print(f"    [OCR] 异常: {e}")
+        print(t("ocr_error", str(e)))
         return False, 0, 0
 
 def scan_run_button(center_x: int, center_y: int, scan_w: int, scan_h: int) -> tuple:
     """
-    截取 center 周围精确矩形区域（按钮大小）
-    用OCR扫描是否有Run文字
-    返回 (found, abs_click_x, abs_click_y)
-
-    原理示意：
-        录入坐标 (center_x, center_y) = Run按钮中心
-        截图区域:
-          ┌──────────┐
-          │  ▶ Run   │  ← scan_width × scan_height 像素，刚好一个按钮大小
-          └──────────┘
-        只在这小区域做OCR，不会误识别其他文字
+    Screenshot a small rectangle around center and OCR-scan for "Run".
+    Returns (found, abs_click_x, abs_click_y).
     """
     left = center_x - scan_w // 2
     top  = center_y - scan_h // 2
 
-    # 截图：只截按钮大小的区域
     img = pyautogui.screenshot(region=(left, top, scan_w, scan_h))
 
     found, lx, ly = ocr_has_run(img)
     if found:
-        # 局部坐标 → 全局坐标
         abs_x = left + lx
         abs_y = top  + ly
         return True, abs_x, abs_y
 
     return False, 0, 0
 
-# ─────────────────────────────────────────────────────────────
-# 核心：等待并点击 Run 按钮
-# ─────────────────────────────────────────────────────────────
+# ── Core: wait and click Run ────────────────────────────────
 
 def wait_and_click_run(run_x: int, run_y: int, cfg: dict, step_label: str) -> bool:
     """
-    在 run_x/run_y 为中心，截取 scan_width × scan_height 的小区域
-    每隔一段时间OCR扫描一次，最多等 run_scan_timeout 秒
-    找到Run就点击，返回True；超时返回False
+    Center on run_x/run_y, screenshot scan_width × scan_height,
+    OCR every interval, timeout after run_scan_timeout seconds.
+    Clicks Run if found.
     """
-    timeout  = cfg["run_scan_timeout"]     # 最多等7秒
-    interval = cfg["run_scan_interval"]    # 0.8秒扫一次
-    scan_w   = cfg["scan_width"]           # 100px
-    scan_h   = cfg["scan_height"]          # 36px
+    timeout  = cfg["run_scan_timeout"]
+    interval = cfg["run_scan_interval"]
+    scan_w   = cfg["scan_width"]
+    scan_h   = cfg["scan_height"]
 
     deadline = time.time() + timeout
     attempt  = 0
@@ -173,24 +345,22 @@ def wait_and_click_run(run_x: int, run_y: int, cfg: dict, step_label: str) -> bo
     while time.time() < deadline:
         attempt += 1
         remaining = deadline - time.time()
-        print(f"    扫描Run... 第{attempt}次 (剩余{remaining:.1f}s) 区域:{scan_w}×{scan_h}px", end="\r", flush=True)
+        print(t("scanning", attempt, remaining, scan_w, scan_h), end="\r", flush=True)
 
         found, abs_x, abs_y = scan_run_button(run_x, run_y, scan_w, scan_h)
 
         if found:
-            print(f"\n    ✅ [{step_label}] 找到Run，点击 ({abs_x}, {abs_y})")
+            print(t("found_run", step_label, abs_x, abs_y))
             pyautogui.moveTo(abs_x, abs_y, duration=0.15)
             pyautogui.click()
             return True
 
         time.sleep(interval)
 
-    print(f"\n    ⏰ [{step_label}] {timeout}秒内未找到Run按钮，跳过")
+    print(t("timeout_run", step_label, timeout))
     return False
 
-# ─────────────────────────────────────────────────────────────
-# 主循环
-# ─────────────────────────────────────────────────────────────
+# ── Main loop ───────────────────────────────────────────────
 
 running     = True
 round_count = 0
@@ -202,29 +372,29 @@ def run_loop():
     steps = cfg["steps"]
 
     if not steps:
-        print("❌ 没有录制步骤，请先选 1 录制")
+        print(t("no_steps"))
         return
 
-    after_run_delay = cfg["after_run_delay"]   # 点Run后等3秒
-    after_tab_delay = cfg["after_tab_delay"]   # 点Tab后等1秒
+    after_run_delay = cfg["after_run_delay"]
+    after_tab_delay = cfg["after_tab_delay"]
     loop_delay      = cfg["loop_delay"]
 
     print("\n" + "="*50)
-    print(f"▶️  开始循环  共 {len(steps)} 个标签页")
-    print(f"   Run识别超时: {cfg['run_scan_timeout']}s")
-    print(f"   点Run后等待: {after_run_delay}s")
-    print(f"   扫描区域:    {cfg['scan_width']}×{cfg['scan_height']}px")
-    print("   鼠标移到屏幕左上角 = 紧急停止")
-    print("   Ctrl+C = 退出")
+    print(t("loop_start", len(steps)))
+    print(t("run_timeout", cfg["run_scan_timeout"]))
+    print(t("after_run_delay", after_run_delay))
+    print(t("scan_area", cfg["scan_width"], cfg["scan_height"]))
+    print(t("failsafe_hint"))
+    print(t("ctrl_c_hint"))
     print("="*50)
-    print("\n⏳ 3秒后开始，请切换到目标窗口...")
+    print(t("switch_hint"))
     time.sleep(3)
 
     while running:
         round_count += 1
         now = time.strftime("%H:%M:%S")
         print(f"\n{'━'*50}")
-        print(f"🔄 第 {round_count} 轮  [{now}]  共{len(steps)}个标签")
+        print(t("round_header", round_count, now, len(steps)))
         print(f"{'━'*50}")
 
         run_clicked = 0
@@ -239,69 +409,62 @@ def run_loop():
 
             print(f"\n  [{i+1}/{len(steps)}] ── {label} ──")
 
-            # ① 点击标签页
-            print(f"  → 点击标签: ({tab_pos[0]}, {tab_pos[1]})")
+            print(t("click_tab", tab_pos[0], tab_pos[1]))
             pyautogui.moveTo(tab_pos[0], tab_pos[1], duration=0.2)
             pyautogui.click()
             time.sleep(after_tab_delay)
 
-            # ② 等待并识别 Run 按钮
             found = wait_and_click_run(run_pos[0], run_pos[1], cfg, label)
 
             if found:
                 run_clicked += 1
-                # ③ 点Run后等待
-                print(f"  ⏳ 等待 {after_run_delay}s 后进入下一个标签...")
-                for t in range(int(after_run_delay), 0, -1):
-                    print(f"\r     {t}s... ", end="", flush=True)
+                print(t("wait_next", after_run_delay))
+                for t_ in range(int(after_run_delay), 0, -1):
+                    print(f"\r     {t_}s... ", end="", flush=True)
                     time.sleep(1)
                 print()
 
-        # 一轮结束
         print(f"\n{'─'*50}")
-        print(f"  本轮结束: 点击了 {run_clicked}/{len(steps)} 个Run按钮")
+        print(t("round_end", run_clicked, len(steps)))
 
         if loop_delay > 0:
-            print(f"  等待 {loop_delay}s 后重新从第1个标签开始...")
+            print(t("loop_delay_wait", loop_delay))
             time.sleep(loop_delay)
 
-    print(f"\n🏁 已停止，共执行 {round_count} 轮")
+    print(t("stopped", round_count))
 
-# ─────────────────────────────────────────────────────────────
-# 录制模式
-# ─────────────────────────────────────────────────────────────
+# ── Record mode ─────────────────────────────────────────────
 
 def countdown_get_pos(prompt: str) -> tuple:
     print(f"\n  👉 {prompt}")
     for i in range(4, 0, -1):
-        print(f"\r     倒计时 {i}s，请将鼠标移到目标位置...", end="", flush=True)
+        print(t("countdown", i), end="", flush=True)
         time.sleep(1)
     x, y = pyautogui.position()
-    print(f"\r     ✅ 已记录坐标: ({x}, {y})              ")
+    print(t("recorded_pos", x, y))
     return x, y
 
 def record_mode():
     print("\n" + "="*50)
-    print("📍 录制模式")
+    print(t("record_title"))
     print("="*50)
-    print("说明：")
-    print("  录制时只需把鼠标【静止放在目标位置】等4秒")
-    print("  不需要画圈，不需要点击，脚本自动记录坐标")
+    print(t("record_hint1"))
+    print(t("record_hint2"))
 
     cfg = load_config()
 
     try:
-        n = int(input("录制几个标签页？(2-10): ").strip() or "3")
+        n = int(input(t("ask_tab_count")).strip() or "3")
     except ValueError:
         n = 3
 
     steps = []
     for i in range(n):
-        print(f"\n─── 第 {i+1}/{n} 个标签 ───")
-        label = input(f"  标签名称（如 Task{i+1}）: ").strip() or f"Tab{i+1}"
+        print(t("step_header", i+1, n))
+        label = input(t("ask_label", i+1)).strip() or f"Tab{i+1}"
 
-        tab_x, tab_y = countdown_get_pos(f"移到「{label}」的标签点击位置（等4秒）")
-        run_x, run_y = countdown_get_pos(f"移到「{label}」的Run按钮正中心（等4秒）")
+        tab_x, tab_y = countdown_get_pos(t("goto_tab", label))
+        run_x, run_y = countdown_get_pos(t("goto_run", label))
 
         steps.append({
             "label": label,
@@ -311,21 +474,21 @@ def record_mode():
 
     cfg["steps"] = steps
 
-    print("\n─── 时间配置（直接回车用默认值）───")
+    print(t("time_config_title"))
     try:
-        v = input(f"  Run识别超时秒数（默认{cfg['run_scan_timeout']}s，范围3-7）: ").strip()
+        v = input(t("ask_timeout", cfg["run_scan_timeout"])).strip()
         if v:
             cfg["run_scan_timeout"] = max(3, min(7, float(v)))
 
-        v = input(f"  点击Run后等待秒数（默认{cfg['after_run_delay']}s）: ").strip()
+        v = input(t("ask_after_run", cfg["after_run_delay"])).strip()
         if v:
             cfg["after_run_delay"] = float(v)
 
-        v = input(f"  Run扫描区域宽度像素（默认{cfg['scan_width']}px，约一个按钮宽）: ").strip()
+        v = input(t("ask_scan_w", cfg["scan_width"])).strip()
         if v:
             cfg["scan_width"] = int(v)
 
-        v = input(f"  Run扫描区域高度像素（默认{cfg['scan_height']}px，约一个按钮高）: ").strip()
+        v = input(t("ask_scan_h", cfg["scan_height"])).strip()
         if v:
             cfg["scan_height"] = int(v)
     except ValueError:
@@ -333,112 +496,103 @@ def record_mode():
 
     save_config(cfg)
 
-# ─────────────────────────────────────────────────────────────
-# 查看配置
-# ─────────────────────────────────────────────────────────────
+# ── Show config ─────────────────────────────────────────────
 
 def show_config():
     cfg = load_config()
     print("\n" + "="*50)
-    print("📋 当前配置")
+    print(t("config_title"))
     print("="*50)
 
     if not cfg["steps"]:
-        print("  （空，还没有录制步骤）")
+        print(t("config_empty"))
     else:
         for i, s in enumerate(cfg["steps"]):
             tp, rp = s["tab_pos"], s["run_pos"]
-            print(f"  {i+1}. {s['label']}")
-            print(f"     标签位置: ({tp[0]}, {tp[1]})")
-            print(f"     Run中心:  ({rp[0]}, {rp[1]})  扫描区域:{cfg['scan_width']}×{cfg['scan_height']}px")
+            print(t("config_step_line", i+1, s["label"]))
+            print(t("config_tab_pos", tp[0], tp[1]))
+            print(t("config_run_pos", rp[0], rp[1], cfg["scan_width"], cfg["scan_height"]))
 
-    print(f"\n  Run识别超时: {cfg['run_scan_timeout']}s")
-    print(f"  点Run后等待: {cfg['after_run_delay']}s")
-    print(f"  点Tab后等待: {cfg['after_tab_delay']}s")
-    print(f"  扫描间隔:    {cfg['run_scan_interval']}s")
-    print(f"  扫描区域:    {cfg['scan_width']}×{cfg['scan_height']}px")
-    print(f"  OCR引擎:     {'✅ 可用' if OCR_OK else '❌ 未安装'}")
+    print(t("config_timeout", cfg["run_scan_timeout"]))
+    print(t("config_after_run", cfg["after_run_delay"]))
+    print(t("config_after_tab", cfg["after_tab_delay"]))
+    print(t("config_interval", cfg["run_scan_interval"]))
+    print(t("config_area", cfg["scan_width"], cfg["scan_height"]))
+    print(t("config_ocr", t("ocr_ready") if OCR_OK else t("ocr_not_ready")))
 
-# ─────────────────────────────────────────────────────────────
-# 调试：测试单点 Run 识别
-# ─────────────────────────────────────────────────────────────
+# ── Test scan ───────────────────────────────────────────────
 
 def test_scan():
     cfg = load_config()
-    print("\n📸 测试Run按钮识别")
-    print(f"   扫描区域: {cfg['scan_width']}×{cfg['scan_height']} 像素（约一个按钮大小）")
-    print("   把鼠标放到Run按钮正中间就行，不用画圈或点击")
-    x, y = countdown_get_pos("移到Run按钮正中间（等4秒）")
+    print(t("test_title"))
+    print(t("test_hint1", cfg["scan_width"], cfg["scan_height"]))
+    print(t("test_hint2"))
+    x, y = countdown_get_pos(t("test_goto"))
 
     scan_w = cfg["scan_width"]
     scan_h = cfg["scan_height"]
 
-    print(f"\n在 ({x}, {y}) 周围截取 {scan_w}×{scan_h}px 区域...")
+    print(t("test_capture", x, y, scan_w, scan_h))
 
-    # 保存截图方便调试
     left = x - scan_w // 2
     top  = y - scan_h // 2
     debug_img = pyautogui.screenshot(region=(left, top, scan_w, scan_h))
     debug_path = BASE_DIR / "debug_scan.png"
     debug_img.save(debug_path)
-    print(f"  截图已保存: {debug_path}（可打开查看扫描范围是否正确）")
+    print(t("test_saved", str(debug_path)))
 
     found, ax, ay = scan_run_button(x, y, scan_w, scan_h)
     if found:
-        print(f"✅ 识别成功！Run按钮在全局坐标: ({ax}, {ay})")
+        print(t("test_success", ax, ay))
     else:
-        print("❌ 未识别到Run文字")
-        print("  调试建议：")
-        print(f"  1. 打开 {debug_path} 看截图是否包含完整的Run按钮")
-        print(f"  2. 如果按钮被截断，增大 scan_width/scan_height")
-        print(f"  3. 如果按钮占比太小在截图里只占一小部分，减小 scan_width/scan_height")
-        print(f"  4. 确认 brew install tesseract 已完成")
+        print(t("test_fail"))
+        print(t("test_debug1", str(debug_path)))
+        print(t("test_debug2"))
+        print(t("test_debug3"))
+        print(t("test_debug4"))
 
-# ─────────────────────────────────────────────────────────────
-# 信号
-# ─────────────────────────────────────────────────────────────
+# ── Signal handlers ─────────────────────────────────────────
 
 def handle_exit(sig, frame):
     global running
     running = False
-    print(f"\n\n⏹ 已停止，共执行 {round_count} 轮")
+    print(t("sigint_stop", round_count))
     sys.exit(0)
 
 signal.signal(signal.SIGINT, handle_exit)
 signal.signal(signal.SIGTERM, handle_exit)
 
-# ─────────────────────────────────────────────────────────────
-# 主菜单
-# ─────────────────────────────────────────────────────────────
+# ── Main menu ───────────────────────────────────────────────
 
 def main():
     print("\n" + "█"*50)
-    print("  AutoClicker")
-    print("  标签页循环点击 + OCR识别Run按钮")
-    print("  录制：鼠标放到目标位置静止等4秒即可")
+    print(t("banner_title"))
+    print(t("banner_sub"))
+    print(t("banner_hint"))
     print("█"*50)
 
     if not OCR_OK:
-        print("\n⚠️  OCR未就绪，请先安装依赖：")
+        print(t("ocr_warn"))
         print("   pip install pytesseract")
         print("   brew install tesseract")
 
     while True:
-        print("\n选择操作：")
-        print("  1. 📍 录制点击序列（鼠标放到位置等4秒）")
-        print("  2. 🔍 测试Run按钮识别（调试用）")
-        print("  3. ▶️  开始循环运行")
-        print("  4. 📋 查看当前配置")
-        print("  5. 🚪 退出")
+        print(f"\n{t('menu_title')}")
+        print(t("menu_1"))
+        print(t("menu_2"))
+        print(t("menu_3"))
+        print(t("menu_4"))
+        print(t("menu_5"))
 
-        choice = input("\n请输入 (1-5): ").strip()
+        choice = input(t("menu_prompt")).strip()
 
         if   choice == "1": record_mode()
         elif choice == "2": test_scan()
         elif choice == "3": run_loop()
         elif choice == "4": show_config()
-        elif choice == "5": print("再见！"); break
-        else: print("请输入 1-5")
+        elif choice == "5": print(t("bye")); break
+        else: print(t("menu_invalid"))
 
 if __name__ == "__main__":
+    LANG = detect_lang()
     main()

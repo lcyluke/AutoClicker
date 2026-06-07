@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
 """
+AutoConfirm - Auto-click Kiro/VSCode confirm buttons
 AutoConfirm - 自动点击 Kiro/VSCode 确认按钮
-双引擎：图像模板匹配 + OCR 文字识别
-macOS 专用
 
-依赖安装：
-    pip install pyautogui pillow pytesseract opencv-python numpy
-    brew install tesseract
+Dual engine: image template matching + OCR text detection
+macOS only
+
+Usage:
+  python auto_confirm.py              # auto-detect language
+  python auto_confirm.py --lang en    # English
+  python auto_confirm.py --lang zh    # 中文
+
+Dependencies:
+  pip install pyautogui pillow pytesseract opencv-python numpy
+  brew install tesseract
 """
 
 import time
@@ -15,6 +22,7 @@ import os
 import logging
 import threading
 import signal
+import locale
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
@@ -23,7 +31,96 @@ import pyautogui
 import numpy as np
 from PIL import Image, ImageGrab, ImageEnhance, ImageFilter
 
-# OCR 是可选依赖，没装也能用图像模式
+# ── i18n ───────────────────────────────────────────────────
+
+T = {
+    "en": {
+        "ocr_unavailable": "⚠️  pytesseract not installed. OCR unavailable.",
+        "template_dir_created": "Template directory created: {}",
+        "template_dir_hint": "Place button screenshots (.png) in this directory. File name = button name.",
+        "template_loaded": "Loading template: {}",
+        "ocr_found": "[OCR] Found button: '{}' (confidence:{}%) @ ({}, {})",
+        "ocr_failed": "OCR failed: {}",
+        "template_found": "[Template] Found button: '{}' (match:{:.2%}) @ ({}, {})",
+        "click_cooldown": "Cooldown active, skipping: {}",
+        "click_ok": "✅ Clicked: [{}] @ ({}, {})  total:{}",
+        "notify_title": "🤖 AutoConfirm",
+        "notify_msg": "Auto-clicked: \"{}\"",
+        "scan_error": "Scan error: {}",
+        "start_banner": "AutoConfirm started",
+        "start_interval": "  Scan interval: {}s",
+        "start_ocr": "  OCR engine: {}",
+        "start_template": "  Template engine: {}",
+        "start_tpl_dir": "  Template dir: {}",
+        "start_stop": "Press Ctrl+C to stop",
+        "cli_help": "Commands: [p] pause/resume  [s] status  [q] quit",
+        "cli_resumed": "▶️  Resumed",
+        "cli_paused": "⏸  Paused",
+        "cli_status": "Status: {} | Total clicks: {}",
+        "cli_running": "running",
+        "cli_paused_state": "paused",
+        "cli_exiting": "Exiting...",
+        "sigint_stop": "\nSignal {} received. Stopping... (total clicks: {})",
+        "eng_available": "✅",
+        "eng_unavailable": "❌",
+    },
+    "zh": {
+        "ocr_unavailable": "⚠️  pytesseract 未安装，OCR不可用。",
+        "template_dir_created": "已创建模板目录: {}",
+        "template_dir_hint": "请将按钮截图（.png）放入该目录，文件名即为按钮名称",
+        "template_loaded": "加载模板: {}",
+        "ocr_found": "[OCR] 发现按钮: '{}' (置信度:{}%) @ ({}, {})",
+        "ocr_failed": "OCR 失败: {}",
+        "template_found": "[模板] 发现按钮: '{}' (匹配度:{:.2%}) @ ({}, {})",
+        "click_cooldown": "冷却中，跳过点击: {}",
+        "click_ok": "✅ 点击成功: [{}] @ ({}, {})  累计:{}次",
+        "notify_title": "🤖 AutoConfirm",
+        "notify_msg": "已自动点击: \"{}\"",
+        "scan_error": "扫描异常: {}",
+        "start_banner": "AutoConfirm 启动",
+        "start_interval": "  扫描间隔: {}s",
+        "start_ocr": "  OCR 引擎: {}",
+        "start_template": "  模板引擎: {}",
+        "start_tpl_dir": "  模板目录: {}",
+        "start_stop": "按 Ctrl+C 停止",
+        "cli_help": "命令: [p]暂停/恢复  [s]状态  [q]退出",
+        "cli_resumed": "▶️  已恢复",
+        "cli_paused": "⏸  已暂停",
+        "cli_status": "状态: {} | 累计点击: {} 次",
+        "cli_running": "运行中",
+        "cli_paused_state": "已暂停",
+        "cli_exiting": "正在退出...",
+        "sigint_stop": "\n收到信号 {}，正在退出... (共点击 {} 次)",
+        "eng_available": "✅",
+        "eng_unavailable": "❌",
+    },
+}
+
+LANG = "en"
+
+def detect_lang() -> str:
+    args = [a for a in sys.argv[1:] if a.startswith("--lang=")]
+    if args:
+        lang = args[0].split("=", 1)[1]
+        if lang in ("zh", "cn", "chinese", "中文"):
+            return "zh"
+        return "en"
+    try:
+        sl = locale.getdefaultlocale()[0] or ""
+        if sl.startswith("zh"):
+            return "zh"
+    except Exception:
+        pass
+    return "en"
+
+def t(key: str, *args) -> str:
+    s = T.get(LANG, T["en"]).get(key, T["en"].get(key, key))
+    if args:
+        return s.format(*args)
+    return s
+
+# ── OCR ─────────────────────────────────────────────────────
+
 try:
     import pytesseract
     OCR_AVAILABLE = True
@@ -36,75 +133,49 @@ try:
 except ImportError:
     CV2_AVAILABLE = False
 
-# ──────────────────────────────────────────────
-# 日志配置
-# ──────────────────────────────────────────────
+# ── Logging ─────────────────────────────────────────────────
+
+LOG_FILE = Path(__file__).parent / "auto_confirm.log"
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%H:%M:%S",
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler(
-            Path(__file__).parent / "auto_confirm.log",
-            encoding="utf-8"
-        ),
+        logging.FileHandler(str(LOG_FILE), encoding="utf-8"),
     ],
 )
 log = logging.getLogger("AutoConfirm")
 
-# ──────────────────────────────────────────────
-# 配置
-# ──────────────────────────────────────────────
+# ── Config ──────────────────────────────────────────────────
+
 @dataclass
 class Config:
-    # 扫描间隔（秒）
     poll_interval: float = 1.2
-
-    # 图像匹配置信度（0-1），越高越严格
     image_confidence: float = 0.75
-
-    # OCR 目标按钮文字（不区分大小写）
     target_labels: list = field(default_factory=lambda: [
         "accept", "accept all", "apply", "apply all",
         "confirm", "yes", "ok", "run", "save", "allow",
         "continue", "proceed", "approve",
-        # 中文
         "接受", "接受所有", "确认", "应用", "保存", "继续",
     ])
-
-    # 危险词黑名单（包含时不点击）
     skip_labels: list = field(default_factory=lambda: [
         "delete", "remove", "discard", "drop",
         "force", "overwrite", "reset", "cancel",
         "删除", "丢弃", "覆盖", "重置",
     ])
-
-    # 点击后冷却（秒），防止重复点击
     click_cooldown: float = 2.0
-
-    # 截图区域（None = 全屏），可缩小范围提升性能
-    # 格式: (left, top, width, height)
     capture_region: Optional[tuple] = None
-
-    # 模板图片目录
     template_dir: Path = Path(__file__).parent / "templates"
-
-    # 是否启用 OCR 引擎
     use_ocr: bool = True
-
-    # 是否启用图像模板引擎
     use_template: bool = True
-
-    # macOS 通知
     use_notification: bool = True
-
 
 CONFIG = Config()
 
-# ──────────────────────────────────────────────
-# 状态
-# ──────────────────────────────────────────────
+# ── State ───────────────────────────────────────────────────
+
 class State:
     running = True
     enabled = True
@@ -113,61 +184,50 @@ class State:
 
 STATE = State()
 
-# ──────────────────────────────────────────────
-# macOS 通知
-# ──────────────────────────────────────────────
+# ── macOS notification ──────────────────────────────────────
+
 def notify(title: str, msg: str):
     if CONFIG.use_notification:
         os.system(
             f'osascript -e \'display notification "{msg}" with title "{title}"\''
         )
 
-# ──────────────────────────────────────────────
-# 截图工具
-# ──────────────────────────────────────────────
+# ── Screenshot ──────────────────────────────────────────────
+
 def grab_screen() -> Image.Image:
     if CONFIG.capture_region:
         l, t, w, h = CONFIG.capture_region
         return ImageGrab.grab(bbox=(l, t, l + w, t + h))
     return ImageGrab.grab()
 
-# ──────────────────────────────────────────────
-# 引擎 1：OCR 文字识别
-# ──────────────────────────────────────────────
+# ── Engine 1: OCR ───────────────────────────────────────────
+
 def preprocess_for_ocr(img: Image.Image) -> Image.Image:
-    """增强图像，提高 OCR 准确率"""
-    img = img.convert("L")                              # 灰度
-    img = ImageEnhance.Contrast(img).enhance(2.0)       # 提升对比度
-    img = img.filter(ImageFilter.SHARPEN)               # 锐化
-    # 放大 2x，tesseract 对小字识别更好
+    img = img.convert("L")
+    img = ImageEnhance.Contrast(img).enhance(2.0)
+    img = img.filter(ImageFilter.SHARPEN)
     w, h = img.size
     img = img.resize((w * 2, h * 2), Image.LANCZOS)
     return img
 
 def find_button_by_ocr(screenshot: Image.Image) -> Optional[tuple]:
-    """
-    用 OCR 扫描屏幕上的按钮文字
-    返回 (center_x, center_y) 或 None
-    """
     if not OCR_AVAILABLE or not CONFIG.use_ocr:
         return None
 
     try:
         processed = preprocess_for_ocr(screenshot)
-        # 获取每个词的位置信息
         data = pytesseract.image_to_data(
             processed,
             output_type=pytesseract.Output.DICT,
-            config="--psm 11",  # 稀疏文字模式，适合 UI
+            config="--psm 11",
             lang="eng+chi_sim",
         )
     except Exception as e:
-        log.debug(f"OCR 失败: {e}")
+        log.debug(t("ocr_failed", str(e)))
         return None
 
     n = len(data["text"])
-    sw, sh = screenshot.size
-    scale = 2  # 对应 preprocess 里的 resize 倍数
+    scale = 2
 
     for i in range(n):
         word = (data["text"][i] or "").strip()
@@ -178,13 +238,10 @@ def find_button_by_ocr(screenshot: Image.Image) -> Optional[tuple]:
 
         word_lower = word.lower()
 
-        # 黑名单检查
         if any(s in word_lower for s in CONFIG.skip_labels):
             continue
 
-        # 目标词匹配
-        if any(t in word_lower for t in CONFIG.target_labels):
-            # 坐标换算回原始截图尺寸
+        if any(t_ in word_lower for t_ in CONFIG.target_labels):
             x = data["left"][i] / scale
             y = data["top"][i] / scale
             w = data["width"][i] / scale
@@ -193,51 +250,42 @@ def find_button_by_ocr(screenshot: Image.Image) -> Optional[tuple]:
             cx = int(x + w / 2)
             cy = int(y + h / 2)
 
-            # 如果有截图偏移，加上偏移量
             if CONFIG.capture_region:
                 cx += CONFIG.capture_region[0]
                 cy += CONFIG.capture_region[1]
 
-            log.info(f"[OCR] 发现按钮: '{word}' (置信度:{conf}%) @ ({cx}, {cy})")
+            log.info(t("ocr_found", word, conf, cx, cy))
             return (cx, cy, word)
 
     return None
 
-# ──────────────────────────────────────────────
-# 引擎 2：图像模板匹配
-# ──────────────────────────────────────────────
+# ── Engine 2: Template matching ─────────────────────────────
+
 def load_templates() -> dict:
-    """加载 templates/ 目录下的所有 .png 模板"""
     templates = {}
     if not CONFIG.template_dir.exists():
         CONFIG.template_dir.mkdir(parents=True)
-        log.info(f"已创建模板目录: {CONFIG.template_dir}")
-        log.info("请将按钮截图（.png）放入该目录，文件名即为按钮名称")
+        log.info(t("template_dir_created", str(CONFIG.template_dir)))
+        log.info(t("template_dir_hint"))
         return templates
 
     for f in CONFIG.template_dir.glob("*.png"):
         img = cv2.imread(str(f), cv2.IMREAD_COLOR)
         if img is not None:
             templates[f.stem] = img
-            log.info(f"加载模板: {f.stem}")
+            log.info(t("template_loaded", f.stem))
 
     return templates
 
 TEMPLATES = {}
 
 def find_button_by_template(screenshot: Image.Image) -> Optional[tuple]:
-    """
-    用模板匹配在截图中找按钮
-    返回 (center_x, center_y, name) 或 None
-    """
     if not CV2_AVAILABLE or not CONFIG.use_template or not TEMPLATES:
         return None
 
-    # PIL → numpy → BGR
     screen_np = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
 
     for name, template in TEMPLATES.items():
-        # 检查黑名单
         if any(s in name.lower() for s in CONFIG.skip_labels):
             continue
 
@@ -258,39 +306,34 @@ def find_button_by_template(screenshot: Image.Image) -> Optional[tuple]:
                 cx += CONFIG.capture_region[0]
                 cy += CONFIG.capture_region[1]
 
-            log.info(f"[模板] 发现按钮: '{name}' (匹配度:{max_val:.2%}) @ ({cx}, {cy})")
+            log.info(t("template_found", name, max_val, cx, cy))
             return (cx, cy, name)
 
     return None
 
-# ──────────────────────────────────────────────
-# 点击执行
-# ──────────────────────────────────────────────
+# ── Click execution ─────────────────────────────────────────
+
 def do_click(cx: int, cy: int, label: str):
     now = time.time()
     if now - STATE.last_click_time < CONFIG.click_cooldown:
-        log.debug(f"冷却中，跳过点击: {label}")
+        log.debug(t("click_cooldown", label))
         return
 
     STATE.last_click_time = now
     STATE.click_count += 1
 
-    # 移动到目标位置（稍微平滑，不要瞬移）
     pyautogui.moveTo(cx, cy, duration=0.15)
     pyautogui.click(cx, cy)
 
-    log.info(f"✅ 点击成功: [{label}] @ ({cx}, {cy})  累计:{STATE.click_count}次")
-    notify("🤖 AutoConfirm", f'已自动点击: "{label}"')
+    log.info(t("click_ok", label, cx, cy, STATE.click_count))
+    notify(t("notify_title"), t("notify_msg", label))
 
-# ──────────────────────────────────────────────
-# 主扫描循环
-# ──────────────────────────────────────────────
+# ── Main scan loop ──────────────────────────────────────────
+
 def scan_once():
-    """执行一次屏幕扫描"""
     try:
         screenshot = grab_screen()
 
-        # 优先用模板（快），再用 OCR（慢但更通用）
         result = find_button_by_template(screenshot)
         if not result:
             result = find_button_by_ocr(screenshot)
@@ -300,16 +343,16 @@ def scan_once():
             do_click(cx, cy, label)
 
     except Exception as e:
-        log.error(f"扫描异常: {e}", exc_info=False)
+        log.error(t("scan_error", str(e)), exc_info=False)
 
 def run_loop():
     log.info("=" * 50)
-    log.info("AutoConfirm 启动")
-    log.info(f"  扫描间隔: {CONFIG.poll_interval}s")
-    log.info(f"  OCR 引擎: {'✅' if OCR_AVAILABLE and CONFIG.use_ocr else '❌'}")
-    log.info(f"  模板引擎: {'✅' if CV2_AVAILABLE and CONFIG.use_template else '❌'}")
-    log.info(f"  模板目录: {CONFIG.template_dir}")
-    log.info("按 Ctrl+C 停止")
+    log.info(t("start_banner"))
+    log.info(t("start_interval", CONFIG.poll_interval))
+    log.info(t("start_ocr", t("eng_available") if OCR_AVAILABLE and CONFIG.use_ocr else t("eng_unavailable")))
+    log.info(t("start_template", t("eng_available") if CV2_AVAILABLE and CONFIG.use_template else t("eng_unavailable")))
+    log.info(t("start_tpl_dir", str(CONFIG.template_dir)))
+    log.info(t("start_stop"))
     log.info("=" * 50)
 
     global TEMPLATES
@@ -321,52 +364,46 @@ def run_loop():
             scan_once()
         time.sleep(CONFIG.poll_interval)
 
-# ──────────────────────────────────────────────
-# 命令行控制（另起线程监听输入）
-# ──────────────────────────────────────────────
+# ── CLI input listener ──────────────────────────────────────
+
 def input_listener():
-    """监听键盘输入，支持运行时控制"""
-    print("\n命令: [p]暂停/恢复  [s]状态  [q]退出\n")
+    print(f"\n{t('cli_help')}\n")
     while STATE.running:
         try:
             cmd = input().strip().lower()
             if cmd == "p":
                 STATE.enabled = not STATE.enabled
-                status = "▶️  已恢复" if STATE.enabled else "⏸  已暂停"
+                status = t("cli_resumed") if STATE.enabled else t("cli_paused")
                 print(f"\n{status}\n")
             elif cmd == "s":
-                print(
-                    f"\n状态: {'运行中' if STATE.enabled else '已暂停'} | "
-                    f"累计点击: {STATE.click_count} 次\n"
-                )
+                status_text = t("cli_running") if STATE.enabled else t("cli_paused_state")
+                print(f"\n{t('cli_status', status_text, STATE.click_count)}\n")
             elif cmd == "q":
                 STATE.running = False
-                print("\n正在退出...")
+                print(f"\n{t('cli_exiting')}")
                 break
         except (EOFError, KeyboardInterrupt):
             break
 
-# ──────────────────────────────────────────────
-# 优雅退出
-# ──────────────────────────────────────────────
+# ── Graceful exit ───────────────────────────────────────────
+
 def handle_signal(sig, frame):
-    log.info(f"\n收到信号 {sig}，正在退出... (共点击 {STATE.click_count} 次)")
+    log.info(t("sigint_stop", sig, STATE.click_count))
     STATE.running = False
     sys.exit(0)
 
 signal.signal(signal.SIGINT, handle_signal)
 signal.signal(signal.SIGTERM, handle_signal)
 
-# ──────────────────────────────────────────────
-# 入口
-# ──────────────────────────────────────────────
+# ── Entry ───────────────────────────────────────────────────
+
 if __name__ == "__main__":
-    # 允许 pyautogui 故障保护（移到左上角立即停止）
+    LANG = detect_lang()
+
     pyautogui.FAILSAFE = True
     pyautogui.PAUSE = 0.05
 
-    # 后台线程监听键盘命令
-    t = threading.Thread(target=input_listener, daemon=True)
-    t.start()
+    t_ = threading.Thread(target=input_listener, daemon=True)
+    t_.start()
 
     run_loop()
